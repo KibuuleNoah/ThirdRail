@@ -173,7 +173,7 @@ func (cb *CircuitBreaker) CurrentState() State {
 // Name returns the breaker's identifier.
 func (cb *CircuitBreaker) Name() string { return cb.name }
 
-// ─── state transitions ────────────────────────────────────────────────────────
+//  state transitions 
 
 func (cb *CircuitBreaker) toOpen() {
 	cb.mu.Lock()
@@ -192,7 +192,7 @@ func (cb *CircuitBreaker) toClosed() {
 	cb.halfOpenProbe.Store(false)
 }
 
-// ─── HTTP middleware ──────────────────────────────────────────────────────────
+//  HTTP middleware 
 
 // Middleware wraps an http.Handler and enforces the circuit breaker policy.
 // Requests are rejected with 503 when the breaker is Open or when a HalfOpen

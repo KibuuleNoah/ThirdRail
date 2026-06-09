@@ -91,7 +91,7 @@ func (r *Router) Routes() []Route {
 	return cp
 }
 
-// ─── internal ─────────────────────────────────────────────────────────────────
+//  internal 
 
 // compileRoutes parses config into runtime Routes, validates upstream URLs,
 // and sorts by descending prefix length for longest-match semantics.

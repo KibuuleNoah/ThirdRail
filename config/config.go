@@ -1,6 +1,3 @@
-// Package config handles all configuration loading and validation for ThirdRail.
-// Config is loaded once at startup from environment variables and/or a YAML-style
-// map, then treated as immutable to avoid any hot-path locking overhead.
 package config
 
 import (
@@ -24,11 +21,13 @@ type RouteConfig struct {
 	StripPrefix bool
 
 	// Timeout overrides the global RequestTimeout for this specific route.
-	// Zero means use the global default.
+	// 0 means use the global default.
 	Timeout time.Duration
 }
 
-// ResiliencyConfig controls circuit breaker and retry behaviour.
+/* 
+Controls circuit breaker and retry behaviour.
+*/
 type ResiliencyConfig struct {
 	// CircuitBreaker settings
 	CBFailureThreshold uint32        // consecutive failures before opening
@@ -42,7 +41,9 @@ type ResiliencyConfig struct {
 	RetryMultiplier float64 // exponential backoff multiplier
 }
 
-// RateLimitConfig controls per-route or global token-bucket parameters.
+/* 
+Controls per-route or global token-bucket parameters.
+*/
 type RateLimitConfig struct {
 	// RequestsPerSecond is the sustained fill rate of the token bucket.
 	RequestsPerSecond float64
@@ -52,7 +53,9 @@ type RateLimitConfig struct {
 	BurstSize int
 }
 
-// ServerConfig holds HTTP server tuning parameters.
+/* 
+Holds HTTP server tuning parameters.
+*/
 type ServerConfig struct {
 	ListenAddr      string
 	ReadTimeout     time.Duration
@@ -61,9 +64,10 @@ type ServerConfig struct {
 	ShutdownTimeout time.Duration
 }
 
-// Config is the root configuration object. It is constructed once and
-// passed as a pointer throughout the application. After Init() returns
-// it must be treated as read-only.
+/* 
+Root configuration read-only object. constructed once and
+passed as a pointer throughout
+ */
 type Config struct {
 	Server     ServerConfig
 	Routes     []RouteConfig
@@ -77,10 +81,6 @@ type Config struct {
 	LogLevel string
 }
 
-// Load builds a Config from environment variables, applying sane defaults
-// for any value that is not explicitly set. This keeps the gateway operational
-// out-of-the-box for development without requiring a config file.
-//
 // Environment variable reference:
 //
 //	THIRDRAIL_LISTEN_ADDR          (default ":8080")
@@ -141,14 +141,17 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// WithRoutes is a functional option that injects a routing table into an
-// existing Config. Useful in tests and for programmatic configuration.
+/*
+A functional option that injects a routing table into an existing Config. 
+*/
 func (c *Config) WithRoutes(routes []RouteConfig) *Config {
 	c.Routes = routes
 	return c
 }
 
-// validate performs basic sanity checks to catch misconfigurations at startup.
+/* 
+Performs basic sanity checks to catch misconfigurations at startup.
+*/
 func (c *Config) validate() error {
 	if c.Server.ListenAddr == "" {
 		return fmt.Errorf("THIRDRAIL_LISTEN_ADDR must not be empty")
@@ -178,7 +181,7 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+/* Helpers */
 
 func envStr(key, def string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {

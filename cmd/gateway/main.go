@@ -1,21 +1,3 @@
-// Command gateway is the ThirdRail API Gateway entry point.
-//
-// It initialises the configuration, builds the middleware chain, and starts
-// an HTTP server with graceful shutdown support.
-//
-// Middleware chain order (outer → inner):
-//
-//	Logger → RateLimiter → Timeout → CircuitBreaker → Retry → ReverseProxy
-//
-// Rationale:
-//  1. Logger wraps everything so it records the final status code (including
-//     rate-limit 429s and circuit-open 503s).
-//  2. RateLimiter rejects excess requests before any expensive work is done.
-//  3. Timeout sets the outer deadline so all downstream work is bounded.
-//  4. CircuitBreaker prevents request accumulation against a known-bad upstream.
-//  5. Retry sits inside the circuit breaker so individual attempts are each
-//     evaluated by the breaker; a failed probe does not silently retry.
-//  6. ReverseProxy performs the actual upstream call.
 package main
 
 import (
@@ -28,28 +10,26 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/KibuuleNoah/ThirdRail/gateway/config"
-	"github.com/KibuuleNoah/ThirdRail/gateway/internal/middleware"
-	"github.com/KibuuleNoah/ThirdRail/gateway/internal/proxy"
-	"github.com/KibuuleNoah/ThirdRail/gateway/internal/resiliency"
+	"github.com/KibuuleNoah/ThirdRail/config"
+	"github.com/KibuuleNoah/ThirdRail/internal/middleware"
+	"github.com/KibuuleNoah/ThirdRail/internal/proxy"
+	"github.com/KibuuleNoah/ThirdRail/internal/resiliency"
 )
 
 func main() {
-	// ── Logger ────────────────────────────────────────────────────────────────
+	//  Logger 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
 	slog.SetDefault(logger)
 
-	// ── Config ────────────────────────────────────────────────────────────────
+	//  Config 
 	cfg, err := config.Load()
 	if err != nil {
 		logger.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
 
-	// Example routing table. In production this would come from a config file
-	// or a service-discovery system.
 	cfg.WithRoutes([]config.RouteConfig{
 		{
 			PathPrefix:  "/api/v1/users",
@@ -70,23 +50,21 @@ func main() {
 		},
 	})
 
-	// ── Routing table ─────────────────────────────────────────────────────────
+	//  Routing table 
 	router, err := proxy.NewRouter(cfg.Routes)
 	if err != nil {
 		logger.Error("failed to build routing table", "error", err)
 		os.Exit(1)
 	}
 
-	// ── Reverse Proxy ─────────────────────────────────────────────────────────
+	//  Reverse Proxy 
 	proxyHandler := proxy.NewHandler(
 		router,
 		cfg.RequestTimeout,
 		proxy.WithLogger(logger),
 	)
 
-	// ── Resiliency — Circuit Breaker ──────────────────────────────────────────
-	// One circuit breaker per gateway (global). For per-route breakers, create
-	// one per route and select via r.URL.Path before calling Middleware.
+	//  Resiliency — Circuit Breaker 
 	cb := resiliency.NewCircuitBreaker(resiliency.CircuitBreakerConfig{
 		Name:             "global",
 		FailureThreshold: cfg.Resiliency.CBFailureThreshold,
@@ -94,7 +72,7 @@ func main() {
 		OpenTimeout:      cfg.Resiliency.CBOpenTimeout,
 	})
 
-	// ── Resiliency — Retry ────────────────────────────────────────────────────
+	//  Resiliency — Retry 
 	retryCfg := resiliency.RetryConfig{
 		MaxRetries:  cfg.Resiliency.MaxRetries,
 		BaseDelay:   cfg.Resiliency.RetryBaseDelay,
@@ -102,7 +80,7 @@ func main() {
 		Multiplier:  cfg.Resiliency.RetryMultiplier,
 	}
 
-	// ── Build middleware chain ─────────────────────────────────────────────────
+	//  Build middleware chain 
 	// Build from innermost to outermost.
 	var handler http.Handler = proxyHandler
 
@@ -125,12 +103,12 @@ func main() {
 	// Logger is outermost so it captures the final response status.
 	handler = middleware.LoggingMiddleware(logger, 8192)(handler)
 
-	// ── Admin / health endpoints ──────────────────────────────────────────────
+	//  Admin / health endpoints 
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", healthHandler(cb))
 	mux.Handle("/", handler) // all other traffic goes through the gateway
 
-	// ── HTTP Server ───────────────────────────────────────────────────────────
+	//  HTTP Server 
 	srv := &http.Server{
 		Addr:         cfg.Server.ListenAddr,
 		Handler:      mux,
@@ -139,7 +117,7 @@ func main() {
 		IdleTimeout:  cfg.Server.IdleTimeout,
 	}
 
-	// ── Graceful shutdown ─────────────────────────────────────────────────────
+	//  Graceful shutdown 
 	idleConnsClosed := make(chan struct{})
 	go func() {
 		quit := make(chan os.Signal, 1)

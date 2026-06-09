@@ -6,8 +6,10 @@ import (
 	"time"
 )
 
-// LogEntry holds all the fields captured for a single request/response cycle.
-// It is stack-allocated (passed by value) to avoid heap allocation on the hot path.
+/* 
+Holds all the fields captured for a single request/response cycle.
+ It is stack-allocated (passed by value) to avoid heap allocation on the hot path.
+*/
 type LogEntry struct {
 	Method     string
 	Path       string

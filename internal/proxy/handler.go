@@ -106,7 +106,7 @@ func RouteFromContext(ctx context.Context) (Route, bool) {
 	return v, ok
 }
 
-// ─── internal ─────────────────────────────────────────────────────────────────
+//  internal 
 
 // proxyFor returns (or lazily creates) a *httputil.ReverseProxy for the given
 // upstream base URL. The cache is keyed by scheme+host to ensure connection
@@ -251,7 +251,7 @@ func (h *Handler) errorHandler(w http.ResponseWriter, r *http.Request, err error
 	http.Error(w, msg, code)
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+//  helpers 
 
 type cancelKey struct{}
 

@@ -1,4 +1,3 @@
-// Package middleware provides cross-cutting HTTP middleware for ThirdRail.
 package middleware
 
 import (
@@ -10,7 +9,7 @@ import (
 	"time"
 )
 
-// ─── Token Bucket ─────────────────────────────────────────────────────────────
+//  Token Bucket 
 
 // tokenBucket implements a token-bucket rate limiter.
 //
@@ -81,7 +80,7 @@ func (tb *tokenBucket) allow() bool {
 	}
 }
 
-// ─── Per-key limiter ──────────────────────────────────────────────────────────
+//  Per-key limiter 
 
 // keyedLimiter maintains a separate token bucket per key (e.g. client IP or
 // API key). Buckets are created lazily and evicted after a configurable TTL
@@ -145,7 +144,7 @@ func (kl *keyedLimiter) evict() {
 	kl.mu.Unlock()
 }
 
-// ─── RateLimiterConfig ────────────────────────────────────────────────────────
+//  RateLimiterConfig 
 
 // RateLimiterConfig configures the rate-limiting middleware.
 type RateLimiterConfig struct {
@@ -167,7 +166,7 @@ type RateLimiterConfig struct {
 	BucketTTL time.Duration
 }
 
-// ─── Middleware ───────────────────────────────────────────────────────────────
+//  Middleware 
 
 // RateLimiterMiddleware returns an http.Handler middleware that enforces
 // token-bucket rate limiting.
@@ -234,7 +233,7 @@ func RateLimiterMiddleware(cfg RateLimiterConfig, logger *slog.Logger) func(http
 	}
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+//  helpers 
 
 // clientIP extracts the real client IP from the request, honouring
 // X-Forwarded-For set by a trusted upstream load balancer.
