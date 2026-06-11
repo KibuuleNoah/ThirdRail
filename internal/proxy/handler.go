@@ -101,7 +101,7 @@ func (h *Handler) proxyFor(target *url.URL) *httputil.ReverseProxy {
 		ErrorHandler:   h.errorHandler,
 
 		// reduce GC pressure on high-throughput paths
-		BufferPool: newBufferPool(),
+		// BufferPool,
 	}
 	h.proxyCache[key] = rp
 	return rp
