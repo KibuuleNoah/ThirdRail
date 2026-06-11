@@ -41,7 +41,14 @@ cleanup() {
 trap cleanup INT TERM
 
 echo "Starting upstream stubs..."
-# python testenv/.venv/bin/activate
+VENV="testenv/.venv"
+if [ ! -d "$VENV" ]; then
+  echo "Creating virtual environment..."
+  python3 -m venv "$VENV"
+  "$VENV/bin/pip" install --quiet -r requirements.txt
+fi
+source "$VENV/bin/activate"
+echo "Activated virtual environment..."
 python testenv/svc_users.py   &  pids+=($!)
 python testenv/svc_orders.py  &  pids+=($!)
 python testenv/svc_default.py &  pids+=($!)
