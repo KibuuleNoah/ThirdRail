@@ -13,7 +13,7 @@ as it would in production.
 pip install flask requests
 ```
 
-Python 3.10+ required (uses match-free union types and `@app.get` decorator shorthand).
+Python 3.10+ required
 
 ## Files
 
@@ -36,8 +36,7 @@ bash testenv/start.sh
 python3 testenv/run_scenarios.py
 ```
 
-`start.sh` can be called from anywhere in the repo; it resolves the project
-root via `${BASH_SOURCE[0]}` and `cd`s there before building.
+`start.sh` can be called from anywhere in the repo
 
 ## Stubs
 
