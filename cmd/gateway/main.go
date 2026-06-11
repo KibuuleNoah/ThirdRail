@@ -117,7 +117,7 @@ func main() {
 		IdleTimeout:  cfg.Server.IdleTimeout,
 	}
 
-	//  Graceful shutdown 
+	//  Paceful shutdown 
 	idleConnsClosed := make(chan struct{})
 	go func() {
 		quit := make(chan os.Signal, 1)
@@ -151,8 +151,9 @@ func main() {
 	logger.Info("ThirdRail gateway stopped cleanly")
 }
 
-// healthHandler returns a simple health-check endpoint that also exposes
-// the current circuit breaker state for monitoring.
+/* Health-check endpoint that also exposes
+ the current circuit breaker state for monitoring.
+ */
 func healthHandler(cb *resiliency.CircuitBreaker) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		state := cb.CurrentState()

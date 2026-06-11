@@ -8,20 +8,17 @@ import (
 	"time"
 )
 
-// RouteConfig defines a single upstream routing rule.
-// PathPrefix is matched greedily; the first match wins.
 type RouteConfig struct {
-	// PathPrefix is the URL prefix to match (e.g. "/api/v1/users").
+	// URL prefix to match (e.g. "/api/v1/users").
 	PathPrefix string
 
-	// UpstreamURL is the base URL of the target service (e.g. "http://users-svc:8080").
+	// base URL of the target service (e.g. "http://users-svc:8080").
 	UpstreamURL string
 
-	// StripPrefix, when true, removes PathPrefix before forwarding the request.
+	// when true, removes PathPrefix before forwarding the request.
 	StripPrefix bool
 
-	// Timeout overrides the global RequestTimeout for this specific route.
-	// 0 means use the global default.
+	// RequestTimeout for this specific route, 0 means use default.
 	Timeout time.Duration
 }
 
@@ -29,33 +26,24 @@ type RouteConfig struct {
 Controls circuit breaker and retry behaviour.
 */
 type ResiliencyConfig struct {
-	// CircuitBreaker settings
-	CBFailureThreshold uint32        // consecutive failures before opening
-	CBSuccessThreshold uint32        // consecutive successes in half-open before closing
-	CBOpenTimeout      time.Duration // how long to stay Open before moving to Half-Open
+	CBFailureThreshold uint32
+	CBSuccessThreshold uint32
+	CBOpenTimeout      time.Duration
 
-	// Retry settings
 	MaxRetries      int
 	RetryBaseDelay  time.Duration
 	RetryMaxDelay   time.Duration
-	RetryMultiplier float64 // exponential backoff multiplier
+	RetryMultiplier float64
 }
 
-/* 
-Controls per-route or global token-bucket parameters.
-*/
 type RateLimitConfig struct {
-	// RequestsPerSecond is the sustained fill rate of the token bucket.
+	// sustained fill rate of the token bucket.
 	RequestsPerSecond float64
 
-	// BurstSize is the maximum number of tokens the bucket can hold.
-	// Allows short bursts above the sustained rate.
+	// max number of tokens the bucket can hold.
 	BurstSize int
 }
 
-/* 
-Holds HTTP server tuning parameters.
-*/
 type ServerConfig struct {
 	ListenAddr      string
 	ReadTimeout     time.Duration
@@ -65,8 +53,7 @@ type ServerConfig struct {
 }
 
 /* 
-Root configuration read-only object. constructed once and
-passed as a pointer throughout
+Root configuration read-only object.
  */
 type Config struct {
 	Server     ServerConfig
@@ -74,10 +61,10 @@ type Config struct {
 	Resiliency ResiliencyConfig
 	RateLimit  RateLimitConfig
 
-	// RequestTimeout is the default end-to-end deadline for proxied requests.
+	// default end-to-end deadline for proxied requests.
 	RequestTimeout time.Duration
 
-	// LogLevel controls verbosity: "debug", "info", "warn", "error".
+	// "debug", "info", "warn", "error".
 	LogLevel string
 }
 
@@ -142,7 +129,7 @@ func Load() (*Config, error) {
 }
 
 /*
-A functional option that injects a routing table into an existing Config. 
+Injects a routing table into an existing Config. 
 */
 func (c *Config) WithRoutes(routes []RouteConfig) *Config {
 	c.Routes = routes

@@ -9,28 +9,19 @@ import (
 	"time"
 )
 
+// ============================================================================================
 //  Token Bucket 
+// ============================================================================================
 
-// tokenBucket implements a token-bucket rate limiter.
-//
-// Concurrency model (lock-free fast path):
-//
-//	tokens is stored as a scaled int64 (actual tokens × tokenScale) managed
-//	entirely via atomic CAS operations. This means Allow() never acquires a
-//	mutex on the common (allowed) path, keeping contention near zero under
-//	high concurrency.
-//
-//	The refill goroutine updates tokens on a fixed tick interval. It uses a
-//	single atomic.Store; no mutex is needed because integer stores are atomic
-//	on all architectures Go targets.
-//
-//	tokenScale converts float64 token counts to int64 for atomic operations,
-//	preserving sub-token precision during refills.
-const tokenScale = 1_000_000 // 1 token = 1_000_000 internal units
+// 1 token = 1_000_000 internal units
+const tokenScale = 1_000_000
 
+/* 
+Implements a token-bucket rate limiter.
+*/
 type tokenBucket struct {
-	tokens   atomic.Int64 // scaled: real tokens × tokenScale
-	capacity int64        // scaled maximum (burst)
+	tokens   atomic.Int64
+	capacity int64
 }
 
 func newTokenBucket(rps float64, burst int) *tokenBucket {
@@ -79,12 +70,15 @@ func (tb *tokenBucket) allow() bool {
 		// Another goroutine consumed a token between our Load and CAS; retry.
 	}
 }
-
+// ============================================================================================
 //  Per-key limiter 
+// ============================================================================================
 
-// keyedLimiter maintains a separate token bucket per key (e.g. client IP or
-// API key). Buckets are created lazily and evicted after a configurable TTL
-// to prevent unbounded memory growth from abandoned keys.
+/* 
+Maintains a separate token bucket per key (e.g. client IP or API key). 
+ Buckets are created lazily and evicted after a configurable TTL
+ to prevent unbounded memory growth from abandoned keys.
+ */
 type keyedLimiter struct {
 	mu      sync.Mutex
 	buckets map[string]*bucketEntry
@@ -144,29 +138,33 @@ func (kl *keyedLimiter) evict() {
 	kl.mu.Unlock()
 }
 
-//  RateLimiterConfig 
+// ============================================================================================
+// ============================================================================================
 
-// RateLimiterConfig configures the rate-limiting middleware.
+/* 
+Configures the rate-limiting middleware.
+*/
 type RateLimiterConfig struct {
-	// RequestsPerSecond is the sustained token refill rate.
 	RequestsPerSecond float64
 
-	// BurstSize is the maximum token accumulation (allows short bursts).
+	// maximum token accumulation (allows short bursts).
 	BurstSize int
 
-	// PerIP, when true, enforces limits per client IP rather than globally.
+	// when true enforces limits per client IP rather than globally.
 	PerIP bool
 
-	// KeyFunc extracts a rate-limit key from the request. Defaults to client IP.
-	// Override this to key on API tokens, tenant IDs, etc.
+	// extracts a rate-limit key from the request. Defaults to client IP.
 	KeyFunc func(r *http.Request) string
 
-	// BucketTTL controls how long an idle per-key bucket is kept before eviction.
+	// controls how long an idle per-key bucket is kept before eviction.
 	// Only used when PerIP is true. Defaults to 5 minutes.
 	BucketTTL time.Duration
 }
 
+// ============================================================================================
 //  Middleware 
+// ============================================================================================
+
 
 // RateLimiterMiddleware returns an http.Handler middleware that enforces
 // token-bucket rate limiting.
@@ -233,12 +231,16 @@ func RateLimiterMiddleware(cfg RateLimiterConfig, logger *slog.Logger) func(http
 	}
 }
 
+// ============================================================================================
 //  helpers 
+// ============================================================================================
 
-// clientIP extracts the real client IP from the request, honouring
-// X-Forwarded-For set by a trusted upstream load balancer.
-// For security in production, restrict this to the first hop only
-// if the gateway is directly internet-facing.
+/* 
+Extracts the real client IP from the request, honouring
+ X-Forwarded-For set by a trusted upstream load balancer.
+ For security in production, restrict this to the first hop only
+ if the gateway is directly internet-facing.
+*/
 func clientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		// Take the leftmost (original client) IP.
@@ -264,8 +266,9 @@ func indexOf(s string, c byte) int {
 	return -1
 }
 
-// itoa converts an int to its decimal string representation without importing
-// strconv, keeping allocations off the hot path by inlining the common case.
+/* 
+converts an int to its decimal string representation
+*/
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

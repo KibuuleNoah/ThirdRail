@@ -22,29 +22,10 @@ type LogEntry struct {
 	RequestID  string
 }
 
-// LoggingMiddleware returns a structured HTTP logging middleware that records
-// per-request latency, status code, and diagnostic fields.
-//
-// # Design goals
-//
-//  1. Non-blocking: log writes are dispatched asynchronously through a buffered
-//     channel to a dedicated writer goroutine. Request handling is never delayed
-//     by slow I/O (e.g. a log sink rotating a file, writing to a remote SIEM).
-//
-//  2. Allocation efficiency: LogEntry is a value type; the channel carries it
-//     by value. slog attribute construction uses the inline ...Attr form to
-//     avoid variadic slice allocation.
-//
-//  3. Back-pressure: if the channel buffer is full (the writer goroutine is
-//     lagging), the middleware falls back to a synchronous write. This ensures
-//     log records are never silently dropped in production.
-//
-// # Dropped records
-//
-// Under extreme overload the channel may fill faster than it drains. Rather
-// than block request handling, we count dropped records and emit a periodic
-// summary. This is the correct trade-off for a gateway: request latency matters
-// more than log completeness.
+/* 
+Returns a structured HTTP logging middleware that records
+per-request latency, status code, and diagnostic fields.
+*/
 func LoggingMiddleware(logger *slog.Logger, bufferSize int) func(http.Handler) http.Handler {
 	if bufferSize <= 0 {
 		bufferSize = 4096
@@ -87,16 +68,16 @@ func LoggingMiddleware(logger *slog.Logger, bufferSize int) func(http.Handler) h
 			select {
 			case ch <- entry:
 			default:
-				// Buffer full — write synchronously to avoid dropping critical records.
+				// Buffer full — write synchronously to avoid dropping records.
 				writeEntry(logger, entry)
 			}
 		})
 	}
 }
 
-// writeEntry emits a structured log record for a completed request.
-// Level is chosen based on status code: errors get slog.LevelError,
-// warnings for 4xx, info for everything else.
+/*
+Emits a structured log record for a completed request.
+*/
 func writeEntry(logger *slog.Logger, e LogEntry) {
 	level := slog.LevelInfo
 	switch {
@@ -127,8 +108,10 @@ func writeEntry(logger *slog.Logger, e LogEntry) {
 	logger.LogAttrs(nil, level, "request", attrs...)
 }
 
-// loggingResponseWriter wraps http.ResponseWriter to intercept WriteHeader and
-// Write calls so we can record the final status code and body size.
+/* 
+Wraps http.ResponseWriter to intercept WriteHeader and
+write calls so that the final status code and body size are recorded.
+*/
 type loggingResponseWriter struct {
 	http.ResponseWriter
 	statusCode   int
@@ -154,8 +137,10 @@ func (lrw *loggingResponseWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
-// Unwrap exposes the underlying ResponseWriter for ResponseController compatibility
-// (e.g. enabling http.Flusher or http.Hijacker when the wrapped writer supports it).
+/* 
+Exposes the underlying ResponseWriter for ResponseController compatibility
+ (e.g. enabling http.Flusher or http.Hijacker when the wrapped writer supports it).
+ */
 func (lrw *loggingResponseWriter) Unwrap() http.ResponseWriter {
 	return lrw.ResponseWriter
 }

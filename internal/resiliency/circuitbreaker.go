@@ -1,4 +1,3 @@
-// Package resiliency provides fault-tolerance primitives for the ThirdRail gateway.
 package resiliency
 
 import (
@@ -10,24 +9,22 @@ import (
 	"time"
 )
 
-// ErrCircuitOpen is returned when a request is rejected because the circuit
-// breaker is in the Open state.
 var ErrCircuitOpen = errors.New("circuit breaker open")
 
-// State represents the circuit breaker's current state.
+// current circuit breaker state.
 type State int32
 
 const (
-	// StateClosed is the normal operating state. Requests flow through.
+	// normal operating state.
 	// Failures are counted; if they reach FailureThreshold the breaker opens.
 	StateClosed State = iota
 
-	// StateOpen rejects all requests immediately without attempting the call.
+	// rejects all requests immediately without attempting the call.
 	// After OpenTimeout elapses the breaker transitions to StateHalfOpen.
 	StateOpen
 
-	// StateHalfOpen allows a single probe request through.
-	// Success → Closed; Failure → Open (reset timer).
+	// allows a single probe request through.
+	// Success -> Closed; Failure -> Open (reset timer).	
 	StateHalfOpen
 )
 
@@ -44,13 +41,6 @@ func (s State) String() string {
 	}
 }
 
-// CircuitBreaker implements a per-upstream three-state circuit breaker.
-//
-// Concurrency model:
-//   - state and failure/success counters are stored as atomics for lock-free
-//     reads on the critical path (Allow).
-//   - mu is only acquired for state transitions and openedAt access, which are
-//     rare events. This keeps Allow() contention-free under normal (Closed) load.
 type CircuitBreaker struct {
 	name string
 
@@ -58,7 +48,7 @@ type CircuitBreaker struct {
 	successThreshold uint32
 	openTimeout      time.Duration
 
-	// Atomics — hot path reads must go through these.
+	// hot path reads must go through these.
 	state         atomic.Int32
 	failureCount  atomic.Uint32
 	successCount  atomic.Uint32
@@ -68,7 +58,6 @@ type CircuitBreaker struct {
 	openedAt time.Time // protected by mu
 }
 
-// CircuitBreakerConfig carries constructor parameters.
 type CircuitBreakerConfig struct {
 	Name             string
 	FailureThreshold uint32
@@ -76,7 +65,6 @@ type CircuitBreakerConfig struct {
 	OpenTimeout      time.Duration
 }
 
-// NewCircuitBreaker constructs a CircuitBreaker starting in StateClosed.
 func NewCircuitBreaker(cfg CircuitBreakerConfig) *CircuitBreaker {
 	cb := &CircuitBreaker{
 		name:             cfg.Name,
@@ -88,18 +76,14 @@ func NewCircuitBreaker(cfg CircuitBreakerConfig) *CircuitBreaker {
 	return cb
 }
 
-// Allow reports whether the caller is permitted to attempt an operation.
-//
-//   - StateClosed   → always nil (allowed).
-//   - StateOpen     → ErrCircuitOpen, unless OpenTimeout has elapsed, in which
-//     case the breaker transitions to HalfOpen and allows one probe.
-//   - StateHalfOpen → nil only for the first caller (the probe); all others
-//     get ErrCircuitOpen until the probe resolves.
-//
-// Allow must be paired with a call to RecordSuccess or RecordFailure.
+/* 
+Report whether the caller is permitted to attempt an operation.
+Allow must be paired with a call to RecordSuccess or RecordFailure.
+*/
 func (cb *CircuitBreaker) Allow() error {
 	switch State(cb.state.Load()) {
 	case StateClosed:
+		// allow 
 		return nil
 
 	case StateOpen:
@@ -110,7 +94,7 @@ func (cb *CircuitBreaker) Allow() error {
 			return fmt.Errorf("%w: upstream %q (retry after %s)",
 				ErrCircuitOpen, cb.name, (cb.openTimeout-elapsed).Round(time.Millisecond))
 		}
-		// Transition to HalfOpen — exactly one probe will be allowed.
+		// Switch to HalfOpen exactly one probe will be allowed.
 		cb.state.Store(int32(StateHalfOpen))
 		cb.halfOpenProbe.Store(false)
 		cb.mu.Unlock()
@@ -127,19 +111,20 @@ func (cb *CircuitBreaker) Allow() error {
 	return nil
 }
 
-// RecordSuccess notifies the breaker that the last operation succeeded.
-//
-//   - StateClosed:   resets the failure counter.
-//   - StateHalfOpen: increments success counter; closes the breaker once
-//     SuccessThreshold consecutive successes are recorded.
+/*
+Notifies the breaker that the last operation succeeded.
+*/
 func (cb *CircuitBreaker) RecordSuccess() {
 	switch State(cb.state.Load()) {
 	case StateClosed:
+		// reset the failure counter.
 		cb.failureCount.Store(0)
 
 	case StateHalfOpen:
+		// increment success counter
 		n := cb.successCount.Add(1)
 		if n >= cb.successThreshold {
+			// close the breaker once
 			cb.toClosed()
 		} else {
 			// Release the probe slot so the next request can probe.
@@ -148,32 +133,32 @@ func (cb *CircuitBreaker) RecordSuccess() {
 	}
 }
 
-// RecordFailure notifies the breaker that the last operation failed.
-//
-//   - StateClosed:   increments failure counter; opens the breaker when threshold is reached.
-//   - StateHalfOpen: immediately re-opens the breaker (probe failed).
+/* 
+RecordFailure notifies the breaker that the last operation failed.
+*/
+
 func (cb *CircuitBreaker) RecordFailure() {
 	switch State(cb.state.Load()) {
 	case StateClosed:
+		// increments failure counter 
 		n := cb.failureCount.Add(1)
 		if n >= cb.failureThreshold {
+		// open the breaker, threshold is reached.
 			cb.toOpen()
 		}
 
 	case StateHalfOpen:
+		// re-open the breaker (probe failed).
 		cb.toOpen()
 	}
 }
 
-// CurrentState returns the current circuit state. Safe for concurrent use.
 func (cb *CircuitBreaker) CurrentState() State {
 	return State(cb.state.Load())
 }
 
-// Name returns the breaker's identifier.
 func (cb *CircuitBreaker) Name() string { return cb.name }
 
-//  state transitions 
 
 func (cb *CircuitBreaker) toOpen() {
 	cb.mu.Lock()
@@ -192,15 +177,15 @@ func (cb *CircuitBreaker) toClosed() {
 	cb.halfOpenProbe.Store(false)
 }
 
-//  HTTP middleware 
 
-// Middleware wraps an http.Handler and enforces the circuit breaker policy.
-// Requests are rejected with 503 when the breaker is Open or when a HalfOpen
-// probe is already in flight. Upstream errors (5xx) trip the breaker; 4xx and
-// 2xx/3xx responses are treated as successes.
-//
-// Important: this middleware must sit INSIDE the retry middleware so that
-// individual retry attempts each pass through the breaker independently.
+/* Enforces the circuit breaker policy.
+   Requests are rejected with 503 when the breaker is Open or when a HalfOpen
+   probe is already in flight. Upstream errors (5xx) trip the breaker; 4xx and
+   2xx/3xx responses are treated as successes.
+  
+   Important: this middleware must sit INSIDE the retry middleware so that
+   individual retry attempts each pass through the breaker independently.
+	 */
 func (cb *CircuitBreaker) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := cb.Allow(); err != nil {
@@ -219,13 +204,11 @@ func (cb *CircuitBreaker) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// isUpstreamError returns true for status codes that represent upstream
-// failures (5xx). 4xx errors are client faults and should not trip the breaker.
 func isUpstreamError(code int) bool {
 	return code >= 500
 }
 
-// statusRecorder captures the HTTP status code written by downstream handlers.
+// captures the HTTP status code written by downstream handlers.
 // It embeds ResponseWriter so all other methods (Header, Write) pass through.
 type statusRecorder struct {
 	http.ResponseWriter
