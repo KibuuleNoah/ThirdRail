@@ -1,6 +1,6 @@
 # ThirdRail
 
-A resilient B2B API gateway in Go. No dependencies outside the standard library.
+A resilient API gateway in Go. No dependencies outside the standard library, just bare metal & lightwigth.
 
 Handles high-throughput traffic, protects downstream services from cascading failures, and enforces rate limits per client. Built for production: all shared state is race-safe, context cancellation propagates cleanly through the full request lifecycle, and the middleware chain is composable.
 
